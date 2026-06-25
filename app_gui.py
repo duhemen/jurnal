@@ -141,8 +141,22 @@ class AppEmenPro(ctk.CTk):
         self.after(5000, self.update_dashboard)
 
     def hapus_transaksi(self):
-        # Tambahkan logika hapus permanen dari JSON di sini nanti
-        messagebox.showinfo("Info", "Fitur hapus permanen akan segera tersedia.")
+        tab_aktif = self.dash_tab.get()
+        tabel = self.tabel_keu if "Keuangan" in tab_aktif else self.tabel_keg
+        selected_item = tabel.selection()
+    
+        if not selected_item:
+            messagebox.showwarning("Peringatan", "Pilih baris yang ingin dihapus!")
+            return
+    
+        if messagebox.askyesno("Konfirmasi", "Yakin ingin menghapus transaksi permanen?"):
+            for item in selected_item:
+                idx = tabel.index(item) # Mendapatkan index baris
+                filename = "keuangan.json" if "Keuangan" in tab_aktif else "kegiatan.json"
+                accounting.delete_data_by_index(filename, idx)
+                tabel.delete(item)
+            messagebox.showinfo("Sukses", "Data terhapus permanen!")
+            self.update_dashboard()
 
     def export_to_excel(self):
         data = []

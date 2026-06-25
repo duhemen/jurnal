@@ -27,20 +27,27 @@ def simpan_transaksi(deskripsi, kategori, diterima, pengeluaran, sumber, lampira
     return "Berhasil", selisih, kelebihan, kekurangan
 
 def simpan_kegiatan(nama, detail, sumber, diterima, pengeluaran, lampiran):
-    # Logika simpan kegiatan ke kegiatan.json
+    diterima = float(diterima or 0)
+    pengeluaran = float(pengeluaran or 0)
+    selisih = diterima - pengeluaran
+    kelebihan = selisih if selisih > 0 else 0
+    kekurangan = abs(selisih) if selisih < 0 else 0
+
     data = db_manager.load_json("kegiatan.json")
     kegiatan = {
         "timestamp": datetime.now().isoformat(),
         "nama_aktivitas": nama,
         "detail": detail,
         "sumber": sumber,
-        "diterima": float(diterima or 0),
-        "pengeluaran": float(pengeluaran or 0),
+        "diterima": diterima,
+        "pengeluaran": pengeluaran,
+        "kelebihan": kelebihan, # Penting ditambahkan
+        "kekurangan": kekurangan, # Penting ditambahkan
         "lampiran": lampiran
     }
     data.append(kegiatan)
     db_manager.save_json("kegiatan.json", data)
-    return "Berhasil", (float(diterima or 0) - float(pengeluaran or 0))
+    return "Berhasil", selisih, kelebihan, kekurangan
 
 def filter_data_by_periode(data, periode):
     if periode == "Semua": return data
@@ -85,3 +92,9 @@ def hitung_saldo():
 def hitung_selisih(diterima, pengeluaran):
     selisih = float(diterima or 0) - float(pengeluaran or 0)
     return selisih, max(0, selisih), abs(min(0, selisih)) # selisih, kelebihan, kekurangan
+
+def delete_data_by_index(filename, index):
+    data = db_manager.load_json(filename)
+    if 0 <= index < len(data):
+        data.pop(index)
+        db_manager.save_json(filename, data)
