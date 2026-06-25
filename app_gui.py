@@ -1,16 +1,21 @@
 import customtkinter as ctk
 from tkinter import filedialog, messagebox, ttk
+import tkinter as tk  # PENTING: Perlu untuk Menu
 import accounting
+import pandas as pd
 
 class AppEmenPro(ctk.CTk):
     def __init__(self):
         super().__init__()
         self.title("Sistem Akuntansi Emen Pro v4.0")
-        self.geometry("800x650")
+        self.geometry("900x700")
         self.grid_columnconfigure(0, weight=1)
+        # Mengatur agar baris ke-0 melar (weight=1)
+        self.grid_rowconfigure(0, weight=1)
         
-        self.tabview = ctk.CTkTabview(self, width=700, height=550)
-        self.tabview.grid(row=0, column=0, pady=20, padx=20)
+        self.tabview = ctk.CTkTabview(self, width=850, height=600)
+        # Gunakan sticky="nsew" agar widget menempel ke semua sisi saat di-maximize
+        self.tabview.grid(row=0, column=0, pady=20, padx=20, sticky="nsew")
         
         tab_keu = self.tabview.add("Keuangan")
         tab_keg = self.tabview.add("Kegiatan")
@@ -49,44 +54,40 @@ class AppEmenPro(ctk.CTk):
         ctk.CTkButton(tab_keg, text="Simpan & Cek Selisih", fg_color="blue", command=self.save_kegiatan).pack(pady=10)
 
         # --- TAB DASHBOARD ---
-        self.periode_menu = ctk.CTkOptionMenu(tab_dash, values=["Harian", "Mingguan", "Bulanan", "Tahunan"], command=self.tampilkan_buku_besar)
+        self.periode_menu = ctk.CTkOptionMenu(tab_dash, values=["Semua", "Harian", "Mingguan", "Bulanan", "Tahunan"], command=self.tampilkan_buku_besar)
         self.periode_menu.pack(pady=10)
         
-        self.label_apbn = ctk.CTkLabel(tab_dash, text="APBN DIPA: Rp 0", font=("Arial", 14, "bold"))
+        self.label_apbn = ctk.CTkLabel(tab_dash, text="APBN DIPA: Rp 0 | Patungan: Rp 0", font=("Arial", 14, "bold"))
         self.label_apbn.pack()
-        
-        # Label Judul Dinamis
+        self.label_patungan = ctk.CTkLabel(tab_dash, text="Patungan: Rp 0", font=("Arial", 14, "bold"))
+        self.label_patungan.pack()
         self.label_judul_keu = ctk.CTkLabel(tab_dash, text="Jurnal Keuangan", font=("Arial", 12, "italic"))
         self.label_judul_keu.pack()
 
-        self.dash_tab = ctk.CTkTabview(tab_dash)
-        self.dash_tab.pack(fill="both", expand=True)
+        # Tabview di Dashboard
+        self.dash_tab = ctk.CTkTabview(tab_dash, command=lambda: self.tampilkan_buku_besar(self.periode_menu.get()))
+        self.dash_tab.pack(fill="both", expand=True, pady=10)
         
-        self.tabel_keu = self.buat_tabel(self.dash_tab.add("Buku Keuangan"))
-        self.tabel_keg = self.buat_tabel(self.dash_tab.add("Buku Kegiatan"))
+        self.frame_keu = self.dash_tab.add("Buku Besar Keuangan")
+        self.frame_keg = self.dash_tab.add("Buku Besar Kegiatan")
         
+        self.tabel_keu = self.buat_tabel(self.frame_keu)
+        self.tabel_keg = self.buat_tabel(self.frame_keg)
+        
+        # Binding Klik Kanan
+        self.tabel_keu.bind("<Button-3>", self.tampilkan_menu)
+        self.tabel_keg.bind("<Button-3>", self.tampilkan_menu)
+        
+        # Tombol Export
+        ctk.CTkButton(tab_dash, text="Export ke Excel", fg_color="gray", command=self.export_to_excel).pack(pady=5)
+
         self.update_dashboard()
-        
-        # --- TABEL BUKU BESAR (Profesional) ---
-        # Membuat style agar terlihat modern
-        style = ttk.Style()
-        style.configure("Treeview", rowheight=25)
-        
-        columns = ("tgl", "desc", "masuk", "keluar")
-        self.tabel = ttk.Treeview(tab_dash, columns=columns, show="headings", height=8)
-        
-        self.tabel.heading("tgl", text="Tanggal")
-        self.tabel.heading("desc", text="Deskripsi")
-        self.tabel.heading("masuk", text="Masuk")
-        self.tabel.heading("keluar", text="Keluar")
-        
-        # Mengatur lebar kolom
-        self.tabel.column("tgl", width=80)
-        self.tabel.column("desc", width=200)
-        self.tabel.column("masuk", width=100)
-        self.tabel.column("keluar", width=100)
-        
-        self.tabel.pack(pady=10, padx=10, fill="both", expand=True)
+
+    # --- FUNGSI ---
+    def tampilkan_menu(self, event):
+        menu = tk.Menu(self, tearoff=0)
+        menu.add_command(label="Hapus Transaksi", command=self.hapus_transaksi)
+        menu.post(event.x_root, event.y_root)
 
     def browse(self, entry):
         path = filedialog.askopenfilename()
@@ -95,14 +96,43 @@ class AppEmenPro(ctk.CTk):
             entry.insert(0, path)
 
     def save_keuangan(self):
-        status, selisih = accounting.simpan_transaksi(self.desc_k.get(), self.kat_k.get(), self.d_entry.get(), self.p_entry.get(), self.sumber_k.get(), self.path_k.get())
-        messagebox.showinfo("Hasil Inspektorat", f"Status: {status}\nSelisih: Rp {selisih:,.2f}")
+        status, selisih, lebih, kurang = accounting.simpan_transaksi(self.desc_k.get(), self.kat_k.get(), self.d_entry.get(), self.p_entry.get(), self.sumber_k.get(), self.path_k.get())
+        messagebox.showinfo("Hasil", f"Status: {status}\nSelisih: {selisih:,.2f}")
         self.update_dashboard()
 
     def save_kegiatan(self):
-        status, selisih = accounting.simpan_kegiatan(self.nama_act.get(), self.detail_act.get(), self.sumber_a.get(), self.d_a.get(), self.p_a.get(), self.path_a.get())
-        messagebox.showinfo("Hasil Inspektorat", f"Status: {status}\nSelisih: Rp {selisih:,.2f}")
+        status, selisih, lebih, kurang = accounting.simpan_kegiatan(self.nama_act.get(), self.detail_act.get(), self.sumber_a.get(), self.d_a.get(), self.p_a.get(), self.path_a.get())
+        messagebox.showinfo("Hasil", f"Status: {status}\nSelisih: {selisih:,.2f}")
         self.update_dashboard()
+
+    def buat_tabel(self, parent):
+        cols = ("tgl", "desc", "sumber", "masuk", "keluar", "lebih", "kurang", "lampiran")
+        tabel = ttk.Treeview(parent, columns=cols, show="headings", height=8)
+        for col in cols: 
+            tabel.heading(col, text=col.capitalize())
+            tabel.column(col, width=80)
+        tabel.pack(fill="both", expand=True)
+        # Warna
+        tabel.tag_configure("positif", foreground="green")
+        tabel.tag_configure("negatif", foreground="red")
+        return tabel
+
+    def tampilkan_buku_besar(self, periode):
+        tab_aktif = self.dash_tab.get()
+        self.label_judul_keu.configure(text=f"Jurnal {periode} - {tab_aktif}")
+        for t in [self.tabel_keu, self.tabel_keg]:
+            for i in t.get_children(): t.delete(i)
+        
+        # Isi Tabel
+        for entry in accounting.get_data_keuangan(periode):
+            selisih = float(entry.get('diterima', 0)) - float(entry.get('pengeluaran', 0))
+            tag = "positif" if selisih >= 0 else "negatif"
+            self.tabel_keu.insert("", "end", values=(entry['timestamp'][:10], entry['deskripsi'], entry['sumber'], entry['diterima'], entry['pengeluaran'], entry.get('kelebihan', 0), entry.get('kekurangan', 0), entry['lampiran']), tags=(tag,))
+        
+        for entry in accounting.get_data_kegiatan(periode):
+            selisih = float(entry.get('diterima', 0)) - float(entry.get('pengeluaran', 0))
+            tag = "positif" if selisih >= 0 else "negatif"
+            self.tabel_keg.insert("", "end", values=(entry['timestamp'][:10], entry['nama_aktivitas'], entry['sumber'], entry['diterima'], entry['pengeluaran'], entry.get('kelebihan', 0), entry.get('kekurangan', 0), entry['lampiran']), tags=(tag,))
 
     def update_dashboard(self):
         saldo = accounting.hitung_saldo()
@@ -110,32 +140,18 @@ class AppEmenPro(ctk.CTk):
         self.label_patungan.configure(text=f"Patungan Pegawai: Rp {saldo['Patungan Pegawai']:,}")
         self.after(5000, self.update_dashboard)
 
-    def buat_tabel(self, parent):
-        cols = ("tgl", "desc", "sumber", "masuk", "keluar")
-        tabel = ttk.Treeview(parent, columns=cols, show="headings", height=8)
-        for col in cols: tabel.heading(col, text=col.capitalize())
-        tabel.column("tgl", width=80); tabel.column("desc", width=150)
-        tabel.pack(fill="both", expand=True)
-        return tabel
+    def hapus_transaksi(self):
+        # Tambahkan logika hapus permanen dari JSON di sini nanti
+        messagebox.showinfo("Info", "Fitur hapus permanen akan segera tersedia.")
 
-    def tampilkan_buku_besar(self, periode):
-        # Update teks judul dinamis
-        self.label_judul_keu.configure(text=f"Jurnal {periode} Keuangan & Kegiatan")
-        
-        # Bersihkan tabel
-        for t in [self.tabel_keu, self.tabel_keg]:
-            for i in t.get_children(): t.delete(i)
-        
-        # Isi data (Pastikan accounting.py sudah punya fungsi ini)
-        for entry in accounting.get_data_keuangan(periode):
-            self.tabel_keu.insert("", "end", values=(entry['timestamp'][:10], entry['deskripsi'], entry['sumber'], entry['diterima'], entry['pengeluaran']))
-        for entry in accounting.get_data_kegiatan(periode):
-            self.tabel_keg.insert("", "end", values=(entry['timestamp'][:10], entry['nama_aktivitas'], entry['sumber'], entry['diterima'], entry['pengeluaran']))
+    def export_to_excel(self):
+        data = []
+        tabel = self.tabel_keu if "Keuangan" in self.dash_tab.get() else self.tabel_keg
+        for child in tabel.get_children(): data.append(tabel.item(child)["values"])
+        df = pd.DataFrame(data, columns=["Tgl", "Desc", "Sumber", "Masuk", "Keluar", "Lebih", "Kurang", "Lampiran"])
+        path = filedialog.asksaveasfilename(defaultextension=".xlsx")
+        if path: df.to_excel(path, index=False)
 
-    def update_dashboard(self):
-        saldo = accounting.hitung_saldo()
-        self.label_apbn.configure(text=f"APBN DIPA: Rp {saldo['APBN DIPA']:,} | Patungan: Rp {saldo['Patungan Pegawai']:,}")
-        self.after(5000, self.update_dashboard)
-
-app = AppEmenPro()
-app.mainloop()
+if __name__ == "__main__":
+    app = AppEmenPro()
+    app.mainloop()

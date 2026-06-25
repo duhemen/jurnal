@@ -2,20 +2,29 @@ import db_manager
 from datetime import datetime
 
 def simpan_transaksi(deskripsi, kategori, diterima, pengeluaran, sumber, lampiran):
-    # Logika simpan keuangan ke keuangan.json
+    diterima = float(diterima or 0)
+    pengeluaran = float(pengeluaran or 0)
+    selisih = diterima - pengeluaran
+    
+    # Menghitung kelebihan dan kekurangan
+    kelebihan = selisih if selisih > 0 else 0
+    kekurangan = abs(selisih) if selisih < 0 else 0
+
     data = db_manager.load_json("keuangan.json")
     transaksi = {
         "timestamp": datetime.now().isoformat(),
         "deskripsi": deskripsi,
         "kategori": kategori,
-        "diterima": float(diterima or 0),
-        "pengeluaran": float(pengeluaran or 0),
+        "diterima": diterima,
+        "pengeluaran": pengeluaran,
+        "kelebihan": kelebihan,
+        "kekurangan": kekurangan,
         "sumber": sumber,
         "lampiran": lampiran
     }
     data.append(transaksi)
     db_manager.save_json("keuangan.json", data)
-    return "Berhasil", (float(diterima or 0) - float(pengeluaran or 0))
+    return "Berhasil", selisih, kelebihan, kekurangan
 
 def simpan_kegiatan(nama, detail, sumber, diterima, pengeluaran, lampiran):
     # Logika simpan kegiatan ke kegiatan.json
@@ -33,11 +42,34 @@ def simpan_kegiatan(nama, detail, sumber, diterima, pengeluaran, lampiran):
     db_manager.save_json("kegiatan.json", data)
     return "Berhasil", (float(diterima or 0) - float(pengeluaran or 0))
 
+def filter_data_by_periode(data, periode):
+    if periode == "Semua": return data
+    
+    today = datetime.now()
+    filtered = []
+    
+    for item in data:
+        dt = datetime.fromisoformat(item['timestamp'])
+        
+        if periode == "Harian" and dt.date() == today.date():
+            filtered.append(item)
+        elif periode == "Mingguan" and dt.isocalendar()[1] == today.isocalendar()[1] and dt.year == today.year:
+            filtered.append(item)
+        elif periode == "Bulanan" and dt.month == today.month and dt.year == today.year:
+            filtered.append(item)
+        elif periode == "Tahunan" and dt.year == today.year:
+            filtered.append(item)
+            
+    return filtered
+
+# Update fungsi get_data Anda:
 def get_data_keuangan(periode):
-    return db_manager.load_json("keuangan.json")
+    data = db_manager.load_json("keuangan.json")
+    return filter_data_by_periode(data, periode)
 
 def get_data_kegiatan(periode):
-    return db_manager.load_json("kegiatan.json")
+    data = db_manager.load_json("kegiatan.json")
+    return filter_data_by_periode(data, periode)
 
 def hitung_saldo():
     keu = db_manager.load_json("keuangan.json")
@@ -48,3 +80,8 @@ def hitung_saldo():
         if sumber in total:
             total[sumber] += (item.get('diterima', 0) - item.get('pengeluaran', 0))
     return total
+
+# Tambahkan fungsi pembantu untuk menghitung selisih
+def hitung_selisih(diterima, pengeluaran):
+    selisih = float(diterima or 0) - float(pengeluaran or 0)
+    return selisih, max(0, selisih), abs(min(0, selisih)) # selisih, kelebihan, kekurangan

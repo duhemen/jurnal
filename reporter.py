@@ -10,7 +10,8 @@ def generate_laporan_bulanan(bulan_angka, tahun):
     for item in data:
         dt = datetime.fromisoformat(item['timestamp'])
         if dt.month == bulan_angka and dt.year == tahun:
-            total_d += item['debit']
-            total_k += item['kredit']
+            # Sesuaikan dengan key di accounting.py
+            total_d += float(item.get('diterima', 0))
+            total_k += float(item.get('pengeluaran', 0))
             
     return total_d, total_k
